@@ -1,39 +1,60 @@
 # Memory Governor
 
-**A memory compiler for Claude Code. Compile 50KB of knowledge into 2KB of session context.**
+**The memory system that remembers what works. Procedural memory + metabolism + anti-amnesia for Claude Code.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## The Problem Everyone Solves Wrong
+## The Problem Nobody Talks About
 
-The Claude Code memory ecosystem has two camps:
+You spend 30 minutes connecting to an API. It works. Next session, Claude tries a completely different approach, fails, and says "can't be done." **You literally did it yesterday.**
 
-**Camp 1: Add infrastructure** (Mem0, Zep, claude-mem)
-→ Vector databases, knowledge graphs, HTTP servers, cloud APIs. Your "memory optimizer" now needs its own DevOps.
+This is **procedural amnesia** — AI forgetting its own proven skills.
 
-**Camp 2: Add more skills** (everything-claude-code)
-→ 181 skills + 47 agents. Your context window is now 50% skill definitions.
-
-**Camp 3: Compress output** (claude-token-efficient, Caveman-Claude)
-→ Shorter responses. Doesn't touch the input side — where the real waste is.
-
-**What nobody does: compile the input context per session intent.**
+Every memory system stores facts (Mem0), events (claude-mem), or relationships (Zep). **None store "how I successfully did X."** Meanwhile, CLAUDE.md bloats to 6KB over months — 2000+ tokens of stale rules loaded every session, while actually useful knowledge (working API calls, solved bugs, proven methods) is lost.
 
 Every session, Claude Code loads CLAUDE.md + MEMORY.md before you type anything. After months of use, these bloat to 6-10KB. That's 2000-3300 tokens of stale rules, duplicate entries, and knowledge irrelevant to the current session. Every. Single. Time.
 
-## Our Approach: Compile, Don't Accumulate
+## Three Innovations (That No Other System Has)
+
+### 1. Procedural Memory — "How I Did It" Layer
+```markdown
+# memory/procedures/stripe_webhook.md
+## Working Solution
+- Use raw body for signature verification (NOT parsed JSON)
+- Webhook route BEFORE express.json() middleware
+## Failed Approaches (never retry these)
+- ❌ Parsed JSON body → signature always fails
+- ❌ express.json() before webhook route → breaks verification
+```
+Before trying ANY approach, Claude checks procedures first. If a proven method exists, use it directly. No re-exploration.
+
+### 2. Memory Metabolism — Auto Temperature
+```
+🔴 Hot (3+ accesses in 14 days)   → always compiled into context
+🟡 Warm (1-2 accesses in 14 days) → compiled if tags match
+🔵 Cool (accessed in 30 days)     → compiled only if directly referenced
+⚪ Cold (30+ days untouched)      → archive candidate
+```
+No manual tagging needed. The system learns what matters from actual usage.
+
+### 3. Anti-Amnesia Protocol
+One line in CLAUDE.md that prevents hours of wasted re-exploration:
+> "Before attempting any technical task, check memory/procedures/ for proven methods. Use them directly. Do not explore alternatives unless the proven method fails."
+
+## Architecture
 
 ```
-Source (your full knowledge: 50KB of memory files)
-  ↓ detect session intent
-  ↓ match tags
+Source (50KB: facts + procedures + skills)
+  ↓ check procedures FIRST
+  ↓ detect intent
+  ↓ temperature-weighted tag match
   ↓ follow [[links]]
   ↓ merge global memory
   ↓ compile
-Binary (this session's context: ~2KB)
+Context (~2KB: proven methods + relevant facts)
 ```
 
-## What's New in v2.1
+## Also Includes (from v2.x)
 
 ### Tag-Based Semantic Index
 Lightweight alternative to vector databases. Every memory file gets `tags:` in frontmatter. Compile matches intent against tags — zero infrastructure:
@@ -112,21 +133,21 @@ Phase 5: Build + Cache
 
 ## Comparison
 
-| | memory-governor | Mem0 | claude-mem (46K⭐) | everything-cc (140K⭐) | token-efficient (3.5K⭐) |
+| | memory-governor v3 | Mem0 | claude-mem (46K⭐) | everything-cc (140K⭐) | MemGPT/Letta |
 |---|---|---|---|---|---|
-| Approach | **Compile input** | Cloud vector DB | Capture & store | Add skills | Compress output |
-| Dependencies | **Zero** | API + cloud | Bun+SQLite+Chroma | Plugin system | Zero |
-| Install | git clone | SDK setup | npx + runtime | Marketplace | Copy file |
-| Token impact | **-73% to -82%** | -90% (cloud cost) | +500 overhead | +significant | -63% output only |
-| Intent-aware | **✅** | ❌ | ❌ | ❌ | ❌ |
-| Tag index | **✅** | Vector DB | SQLite FTS | ❌ | ❌ |
-| Link following | **✅** | Knowledge graph | ❌ | ❌ | ❌ |
-| Cross-project | **✅** | ✅ (cloud) | ❌ | ❌ | ❌ |
-| Auto-hooks | **✅ (5 hooks)** | N/A | ✅ | ✅ | ❌ |
-| Works offline | **✅** | ❌ | Partial | Yes | Yes |
-| Privacy/GDPR | **✅ by design** | ❌ needs DPA | Partial | Yes | Yes |
+| **Procedural memory** | **✅ Dedicated layer** | ❌ | ❌ | ❌ | ❌ |
+| **Anti-amnesia** | **✅ Check before explore** | ❌ | ❌ | ❌ | ❌ |
+| **Failed path tracking** | **✅ In procedures** | ❌ | ❌ | ❌ | ❌ |
+| **Memory metabolism** | **✅ Access-based** | ❌ | ❌ | ❌ | ⚠️ RL-based |
+| Intent compilation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Dependencies | **Zero** | Cloud API | Bun+SQLite+Chroma | Plugin system | Agent framework |
+| Token impact | -73% to -82% | -90% (cloud) | +500 overhead | +significant | Variable |
+| Works offline | **✅** | ❌ | Partial | Yes | ❌ |
+| Privacy/GDPR | **✅ by design** | ❌ | Partial | Yes | ❌ |
 
-**Key insight**: Mem0 achieves -90% through cloud infrastructure. We achieve -82% with zero infrastructure. The gap is 8%, the complexity gap is infinite.
+**Our unique position: The only system that prevents AI from forgetting its own skills.**
+
+Mem0 achieves -90% token reduction through cloud infrastructure. We achieve -82% with zero infrastructure. But we solve a problem they don't even address: procedural amnesia.
 
 ## Benchmarks
 
