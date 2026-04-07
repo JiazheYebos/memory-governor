@@ -61,7 +61,7 @@ Lightweight alternative to vector databases. Every memory file gets `tags:` in f
 ```yaml
 ---
 name: api_credentials
-tags: [api, credentials, meta, kling]
+tags: [api, credentials, stripe, aws]
 ---
 ```
 
