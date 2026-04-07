@@ -8,57 +8,61 @@
 
 The Claude Code memory ecosystem has two camps:
 
-**Camp 1: Add more infrastructure** (claude-mem, 46K⭐)
-→ SQLite + Chroma vector DB + HTTP server + Bun runtime to manage your memory files.
+**Camp 1: Add infrastructure** (Mem0, Zep, claude-mem)
+→ Vector databases, knowledge graphs, HTTP servers, cloud APIs. Your "memory optimizer" now needs its own DevOps.
 
-**Camp 2: Add more skills** (everything-claude-code, 140K⭐)
-→ 181 skills + 47 agents + hooks. Your context window is now 50% skill definitions.
+**Camp 2: Add more skills** (everything-claude-code)
+→ 181 skills + 47 agents. Your context window is now 50% skill definitions.
 
-**Camp 3: Compress output** (claude-token-efficient, 3.5K⭐)
-→ Make Claude respond shorter. Doesn't touch the input side at all.
+**Camp 3: Compress output** (claude-token-efficient, Caveman-Claude)
+→ Shorter responses. Doesn't touch the input side — where the real waste is.
 
-**What nobody does: optimize what gets loaded into the context window at session start.**
+**What nobody does: compile the input context per session intent.**
 
-Every session, Claude Code loads CLAUDE.md + MEMORY.md before you type anything. After months of use, these files bloat to 6-10KB — that's 2000-3300 tokens of stale rules, duplicate entries, and knowledge that's irrelevant to the current session. Every. Single. Time.
+Every session, Claude Code loads CLAUDE.md + MEMORY.md before you type anything. After months of use, these bloat to 6-10KB. That's 2000-3300 tokens of stale rules, duplicate entries, and knowledge irrelevant to the current session. Every. Single. Time.
 
 ## Our Approach: Compile, Don't Accumulate
 
-Like a code compiler transforms source into optimized machine code:
-
 ```
 Source (your full knowledge: 50KB of memory files)
+  ↓ detect session intent
+  ↓ match tags
+  ↓ follow [[links]]
+  ↓ merge global memory
   ↓ compile
-Binary (this session's context: ~2KB of relevant knowledge)
+Binary (this session's context: ~2KB)
 ```
 
-Three innovations:
+## What's New in v2.1
 
-### 1. The 4-Layer Knowledge Pyramid
-
-```
-Layer 0: CLAUDE.md          < 2KB     Always loaded. Eternal principles ONLY.
-Layer 1: MEMORY.md index    < 15 entries  Always loaded. One-line pointers.
-Layer 2: memory/*.md        On-demand    Detailed knowledge.
-Layer 3: skills/ + docs/    On-invoke    Templates & reference.
-```
-
-**Rule: Content lives at the LOWEST layer where it's still accessible.**
-
-### 2. Intent-Driven Compilation
-
-Instead of loading all knowledge every session:
-
-```
-User: "Fix the auth bug"
-  → Detect domain: backend, auth
-  → Score memory files by relevance
-  → Compile: load only auth-related decisions + recent state
-  → Result: 800 tokens instead of 3000
+### Tag-Based Semantic Index
+Lightweight alternative to vector databases. Every memory file gets `tags:` in frontmatter. Compile matches intent against tags — zero infrastructure:
+```yaml
+---
+name: api_credentials
+tags: [api, credentials, meta, kling]
+---
 ```
 
-### 3. Compile Cache
+### Relationship Links
+Files reference each other with `[[links]]`. If file A is loaded and references `[[file_B]]`, both compile into context:
+```markdown
+See also: [[product_specs]] for dimensions.
+```
 
-Repeated domains reuse cached compilations. Cache invalidates when source files change.
+### Auto-Capture Hooks
+5 lifecycle hooks (pure shell, no runtime):
+- `SessionStart`: Load alerts, check compile cache
+- `PreCompact`: Extract state before context compaction
+- `SessionEnd`: Capture knowledge, check memory health
+
+### Cross-Project Global Memory
+```
+~/.claude/global-memory/
+  credentials.md      # API keys (shared across all projects)
+  preferences.md      # Your output style, language, rules
+  tool-knowledge.md   # Cross-project expertise
+```
 
 ## Install
 
@@ -72,7 +76,7 @@ No dependencies. No config. No API keys. No runtime. Done.
 
 ```
 /memory-governor audit        # Measure current token waste
-/memory-governor optimize     # Fix layer violations automatically
+/memory-governor optimize     # Fix issues + add tags + add links
 /memory-governor compile      # Build minimal context for this session
 /memory-governor capture      # Save knowledge from current conversation
 /memory-governor setup-hooks  # Install auto-governance hooks
@@ -87,77 +91,99 @@ bash ~/.claude/skills/memory-governor/scripts/audit.sh
 
 ```
 Phase 1: Intent Detection
-  Read first message → classify domain (backend, frontend, infra, content...)
+  "Fix the auth bug" → [backend, auth, debug]
 
-Phase 2: Relevance Scoring
-  Score each memory file against detected domain
-  Signals: filename keywords, description match, recency, dependencies
+Phase 2: Tag Matching
+  Score memory files: count(file.tags ∩ detected_domains)
+  Always include: state_current.md, files tagged [critical]
 
-Phase 3: Build Minimal Context
-  Include: active state (always) + relevant knowledge + applicable rules
-  Exclude: everything else
+Phase 3: Link Following
+  If file A included and contains [[file_B]] → also include B
+  Depth limit: 1 hop
 
-Phase 4: Inject
-  Single compiled block → ~800 tokens instead of ~3000
+Phase 4: Global Memory Merge
+  ~/.claude/global-memory/credentials.md → if API session
+  ~/.claude/global-memory/preferences.md → always (tiny)
+
+Phase 5: Build + Cache
+  Compiled context → memory/.compiled/{domain}.md
+  Reuse if source files unchanged
 ```
 
-## What It Fixes
+## Comparison
 
-| Anti-Pattern | What Happens | Fix |
-|-------------|-------------|-----|
-| Knowledge dump CLAUDE.md | 6KB loaded every session | Move specifics to Layer 2 |
-| Index-as-content | MEMORY.md entries are paragraphs | One-line pointers only |
-| Zombie state | "Working on X" from weeks ago | Update or archive |
-| Shotgun loading | All knowledge for every session | Compile per-intent |
-| Duplicate facts | Same info in 3 places | Single source of truth |
-| Date decay | "Yesterday decided..." | Absolute dates only |
+| | memory-governor | Mem0 | claude-mem (46K⭐) | everything-cc (140K⭐) | token-efficient (3.5K⭐) |
+|---|---|---|---|---|---|
+| Approach | **Compile input** | Cloud vector DB | Capture & store | Add skills | Compress output |
+| Dependencies | **Zero** | API + cloud | Bun+SQLite+Chroma | Plugin system | Zero |
+| Install | git clone | SDK setup | npx + runtime | Marketplace | Copy file |
+| Token impact | **-73% to -82%** | -90% (cloud cost) | +500 overhead | +significant | -63% output only |
+| Intent-aware | **✅** | ❌ | ❌ | ❌ | ❌ |
+| Tag index | **✅** | Vector DB | SQLite FTS | ❌ | ❌ |
+| Link following | **✅** | Knowledge graph | ❌ | ❌ | ❌ |
+| Cross-project | **✅** | ✅ (cloud) | ❌ | ❌ | ❌ |
+| Auto-hooks | **✅ (5 hooks)** | N/A | ✅ | ✅ | ❌ |
+| Works offline | **✅** | ❌ | Partial | Yes | Yes |
+| Privacy/GDPR | **✅ by design** | ❌ needs DPA | Partial | Yes | Yes |
+
+**Key insight**: Mem0 achieves -90% through cloud infrastructure. We achieve -82% with zero infrastructure. The gap is 8%, the complexity gap is infinite.
 
 ## Benchmarks
-
-Tested across multiple projects with 3-6 months of accumulated memory:
 
 ```
 Before optimization:
   CLAUDE.md: 6KB + MEMORY.md: 4KB = ~3300 tokens/session
 
-After optimize:
-  CLAUDE.md: 1.5KB + MEMORY.md: 1.2KB = ~900 tokens/session (73% reduction)
+After optimize (v2.0):
+  CLAUDE.md: 1.5KB + MEMORY.md: 1.2KB = ~900 tokens/session → 73% reduction
 
-After compile:
-  Compiled context: ~800 tokens/session (76% reduction)
-  With cache hit: ~600 tokens/session (82% reduction)
+After compile (v2.1):
+  Tag-matched subset: ~800 tokens → 76% reduction
+
+After compile + cache (v2.1):
+  Cached domain: ~600 tokens → 82% reduction
 ```
 
-## Comparison
+## Memory File Template
 
-| | memory-governor | claude-mem (46K⭐) | everything-cc (140K⭐) | token-efficient (3.5K⭐) |
-|---|---|---|---|---|
-| Approach | Compile input | Capture & store | Add skills | Compress output |
-| Dependencies | Zero | Bun+SQLite+Chroma | Plugin system | Zero |
-| Install | git clone | npx + setup | Marketplace | Copy file |
-| Token impact | **-73% to -82%** | +500 overhead | +significant | -63% output only |
-| Intent-aware | ✅ Yes | ❌ No | ❌ No | ❌ No |
-| Compile cache | ✅ Yes | N/A | N/A | N/A |
-| Works offline | ✅ Yes | Partial | Yes | Yes |
-| What it optimizes | Input context | Storage | Capabilities | Output verbosity |
+```markdown
+---
+name: descriptive_name
+description: One-line summary for index
+tags: [domain1, domain2, keyword]
+updated: 2026-04-08
+---
 
-**Key insight**: Others optimize the wrong side. Output compression saves tokens on responses. Input compilation saves tokens on _every message_ — including tool calls, which are the majority of Claude Code's token usage.
+# Title
+
+Content here.
+
+See also: [[related_file_name]]
+```
 
 ## Philosophy
 
-> Adding a database, a vector store, and an HTTP server to manage 15 memory files is like buying a warehouse to organize a bookshelf.
+> Adding a vector database to manage 15 markdown files is like buying a data center to run a spreadsheet.
 
-> Adding 181 skills to reduce token waste is like hiring 181 employees to reduce payroll.
+> Adding 181 skills to reduce token waste is like hiring 181 people to reduce payroll.
 
-> Making responses shorter doesn't help when 3000 tokens of stale context are loaded before the conversation starts.
+> Making responses shorter doesn't help when 3000 tokens of stale context load before the conversation starts.
 
-Just compile the bookshelf.
+Just compile the context.
 
-## Compatibility
+## Contributors
 
-- Claude Code (CLI, Desktop, Web, IDE extensions)
-- Works alongside claude-mem, everything-claude-code, or any other tool
-- Any project with CLAUDE.md
+<a href="https://github.com/JiazheYebos">
+  <img src="https://github.com/JiazheYebos.png" width="60" style="border-radius:50%"/>
+</a>
+
+## Contributing
+
+PRs welcome. Core principles:
+- Zero dependencies (no databases, no servers, no API keys)
+- Subtractive over additive (remove waste, don't add infrastructure)
+- Works offline by default
+- SKILL.md is the single source of truth
 
 ## License
 

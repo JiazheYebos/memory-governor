@@ -1,6 +1,6 @@
 ---
 name: memory-governor
-description: Memory compiler for Claude Code. Restructure knowledge into a 4-layer pyramid, then compile per-session context to minimum viable size. Zero dependencies.
+description: Memory compiler for Claude Code. 4-layer pyramid + intent compilation + tag-based semantic index + auto-capture hooks + cross-project memory. Zero dependencies.
 allowed-tools:
   - Read
   - Write
@@ -8,7 +8,7 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-when_to_use: "Use when token consumption is high, CLAUDE.md is bloated, memory is disorganized, or starting a new project. Triggers: '/memory-governor', 'optimize memory', 'reduce tokens', 'clean up memory', 'memory audit', 'compile memory'"
+when_to_use: "Use when token consumption is high, CLAUDE.md is bloated, memory is disorganized, or starting a new project. Triggers: '/memory-governor', 'optimize memory', 'reduce tokens', 'clean up memory', 'compile memory'"
 argument-hint: "/memory-governor [audit|optimize|compile|capture|setup-hooks]"
 arguments:
   - action
@@ -17,227 +17,260 @@ context: inline
 
 # Memory Governor
 
-A memory compiler for Claude Code. Like a code compiler transforms source into optimized machine code, Memory Governor compiles your full knowledge base (~50KB) into the minimum viable context (~2KB) for each session.
-
-**No database. No vector store. No HTTP server. No API keys. Just organized Markdown.**
+A memory compiler for Claude Code. Compiles your full knowledge base (~50KB) into minimum viable session context (~2KB) through intent detection, tag-based indexing, and relationship-aware loading. Zero dependencies.
 
 ## Core Concept: Memory Compilation
 
 ```
-Full Knowledge Base (Layer 2+3: 50KB, all your memory files + skills)
+Full Knowledge (50KB: memory files + skills + global memory)
+        ↓ detect intent
+        ↓ match tags
+        ↓ follow links
         ↓ compile
-Session Context (Layer 0+1: ~2KB, only what THIS session needs)
+Session Context (~2KB: only what THIS session needs)
 ```
-
-Traditional approach: Load everything → waste tokens on irrelevant knowledge.
-Our approach: Analyze intent → compile minimal context → inject only what's needed.
 
 ## The 4-Layer Knowledge Pyramid
 
 ```
-Layer 0: CLAUDE.md          < 2KB     Always loaded. Eternal principles ONLY.
-Layer 1: MEMORY.md index    < 15 entries  Always loaded. One-line pointers.
-Layer 2: memory/*.md        On-demand    Detailed knowledge. Loaded when relevant.
-Layer 3: skills/ + docs/    On-invoke    Templates & reference. Never auto-loaded.
+Layer 0: CLAUDE.md           < 2KB      Always loaded. Eternal principles ONLY.
+Layer 1: MEMORY.md index     < 15 entries  Always loaded. Tagged pointers.
+Layer 2: memory/*.md         On-demand   Detailed knowledge. Tag-indexed.
+Layer 3: skills/ + docs/     On-invoke   Templates & reference.
 ```
 
-**Layering rule: Content lives at the LOWEST layer where it's still accessible when needed.**
+**Layering rule: Content lives at the LOWEST layer where it's still accessible.**
+
+## v2.1 Features
+
+### Tag-Based Semantic Index (lightweight alternative to vector DB)
+Every memory file uses frontmatter tags for domain matching:
+```markdown
+---
+name: api_credentials
+tags: [api, credentials, meta, kling, gemini]
+---
+```
+Compile matches session intent against tags — no vector database needed.
+
+### Relationship Links
+Memory files reference each other with `[[links]]`:
+```markdown
+See also: [[decisions_product_specs]] for dimensions.
+```
+If file A is loaded and references file B, both are compiled into context.
+
+### Auto-Capture Hooks
+5 lifecycle hooks (shell scripts, no runtime dependencies):
+- `SessionStart`: Load compiled context + check governance alerts
+- `PreToolUse`: (reserved for future use)
+- `PostToolUse`: (reserved for future use)
+- `PreCompact`: Extract key state before context compaction
+- `SessionEnd`: Capture decisions/errors, check memory health
+
+### Cross-Project Global Memory
+```
+~/.claude/global-memory/
+  credentials.md      # API keys shared across projects
+  preferences.md      # User preferences (output style, language)
+  tool-knowledge.md   # Cross-project tool expertise
+```
+Compile searches both project memory AND global memory.
+
+---
 
 ## Actions
 
 ### `/memory-governor audit`
-Measure current state. Output token cost, layer violations, stale entries.
+Measure current state. Output token cost, layer violations, missing tags, stale entries.
 
 ### `/memory-governor optimize`
-Fix layer violations: move misplaced content down, merge duplicates, clean stale entries.
+Fix layer violations, add missing tags, merge duplicates, clean stale entries.
 
 ### `/memory-governor compile`
-**The key differentiator.** Analyze current session intent, then build a minimal context payload.
+Detect session intent → match tags → follow links → build minimal context.
 
 ### `/memory-governor capture`
-Extract key knowledge from current conversation into appropriate memory layer.
+Extract key knowledge from current conversation into appropriate layer.
 
 ### `/memory-governor setup-hooks`
-Install session lifecycle hooks for automatic governance.
+Install all 5 lifecycle hooks for automatic governance.
 
 ---
 
 ## Step-by-step: `audit`
 
-### 1. Measure Current Cost
+### 1. Measure Cost
 ```bash
-bash "$(dirname "$0" 2>/dev/null || echo ~/.claude/skills/memory-governor)/scripts/audit.sh"
+bash ~/.claude/skills/memory-governor/scripts/audit.sh
 ```
 
-### 2. Classify CLAUDE.md Content
-
-Read CLAUDE.md. For each section, ask: **"Does this apply to EVERY conversation?"**
-
-| If YES → Layer 0 (keep) | If NO → Layer 2 or 3 (move down) |
-|---|---|
+### 2. Classify CLAUDE.md
+For each section: **"Does this apply to EVERY conversation?"**
+- YES → Layer 0 (keep)
+- NO → Move to Layer 2 or 3
 
 | Content Type | Correct Layer |
 |-------------|--------------|
-| Thinking principles, output format | 0 — Keep |
-| API keys, credentials | 2 — Move down |
-| Product/project specifics | 2 — Move down |
-| Tool/model selection tables | 2 — Move down |
-| Step-by-step workflows | 3 (skill) — Move down |
-| Registered skills list | Delete (auto-detected) |
-| Error history, anti-patterns | 2 — Move down |
+| Thinking principles | 0 — Keep |
+| API keys | 2 — Move |
+| Project specifics | 2 — Move |
+| Tool/model tables | 2 — Move |
+| Workflows | 3 (skill) — Move |
 
-**Target: CLAUDE.md < 2KB after optimization.**
+**Target: CLAUDE.md < 2KB.**
 
-### 3. Audit Memory Index
-
-For each MEMORY.md entry:
-- Still relevant? (read the file to verify)
-- Entry < 120 chars? (it's a pointer, not content)
-- Duplicate of another entry? → Merge
-- Stale (> 60 days, facts changed)? → Update or remove
-- Relative dates? → Convert to absolute
-
-**Target: < 15 entries.**
-
-### 4. Check Memory Files
-
-- Any file > 5KB? → Split or summarize
-- Total > 100KB? → Consolidate
-- Multiple files on same topic? → Merge
-- Referenced file paths still exist? → Verify
-
-### 5. Output Report
-
+### 3. Check Tags
+```bash
+# Find memory files missing tags
+for f in memory/*.md; do
+  grep -q "^tags:" "$f" || echo "MISSING TAGS: $f"
+done
 ```
-## Memory Governor Audit
 
+### 4. Check Links
+```bash
+# Find broken links
+grep -roh '\[\[[^]]*\]\]' memory/*.md | sort -u | while read link; do
+  name=$(echo "$link" | tr -d '[]')
+  ls memory/*${name}* 2>/dev/null || echo "BROKEN LINK: $link"
+done
+```
+
+### 5. Audit Index
+- Entries < 15?
+- Each < 120 chars?
+- Stale entries (> 60 days)?
+- Duplicates?
+
+### 6. Check Global Memory
+```bash
+ls ~/.claude/global-memory/*.md 2>/dev/null || echo "No global memory (optional)"
+```
+
+### 7. Output Report
+```
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
-| CLAUDE.md | X KB (~Y tokens) | < 2KB | ✅/⚠️ |
+| CLAUDE.md | X KB | < 2KB | ✅/⚠️ |
 | Index entries | N | < 15 | ✅/⚠️ |
-| Memory files | M files, Z KB | < 100KB | ✅/⚠️ |
+| Tagged files | X/Y | Y/Y | ✅/⚠️ |
+| Linked files | X with links | — | ℹ️ |
+| Global memory | exists/missing | — | ℹ️ |
 | Per-session cost | ~T tokens | < 1000 | ✅/⚠️ |
-
-Recommendations:
-1. [specific actions]
 ```
 
 ---
 
 ## Step-by-step: `optimize`
 
-Run audit first, then execute all recommendations:
-1. Rewrite CLAUDE.md keeping only Layer 0 content
-2. Create/update memory files for displaced content
-3. Rebuild MEMORY.md index
-4. Merge duplicate files
-5. Remove stale index entries (preserve files)
-6. Re-audit to confirm
+1. Rewrite CLAUDE.md → Layer 0 content only
+2. Move displaced content to memory files with proper tags
+3. Add missing tags to all memory files (infer from filename + content)
+4. Add `[[links]]` where files reference each other
+5. Rebuild MEMORY.md index with tag hints
+6. Merge duplicate files
+7. Set up `~/.claude/global-memory/` if not exists
+8. Move cross-project knowledge (credentials, preferences) to global
+9. Re-audit to confirm
 
-**Human checkpoint**: Show before/after diff before writing.
+**Human checkpoint**: Show diff before writing.
 
 ---
 
 ## Step-by-step: `compile`
 
-This is what makes Memory Governor different from every other tool.
-
 ### Phase 1: Intent Detection
-
-Read the user's first message (or session topic) and classify the domain:
-
+Read user's first message. Classify domain:
 ```
-"Fix the login bug" → domain: backend, auth
-"Write a blog post" → domain: content, writing
-"Deploy to staging" → domain: infra, deployment
-"Review this PR" → domain: code-review
-```
-
-### Phase 2: Relevance Scoring
-
-Score each memory file against the detected domain:
-
-```python
-# Pseudo-logic (executed by Claude, not a script)
-for each memory_file in memory/*.md:
-    relevance = estimate_relevance(file.name, file.description, detected_domain)
-    if relevance > threshold:
-        include in compiled context
+"Fix the login bug"       → [backend, auth, debug]
+"Write a blog post"       → [content, writing]
+"Deploy to staging"       → [infra, deployment]
+"Set up Meta ads"         → [marketing, meta, ads]
+"Make a product video"    → [visual, video, production]
 ```
 
-Scoring signals:
-- Filename keywords matching domain
-- MEMORY.md description matching intent
-- Recency (state files always relevant, old decisions less so)
-- Dependency (if file A references file B, include both)
+### Phase 2: Tag Matching
+Score each memory file:
+```
+For each memory file:
+  score = count(file.tags ∩ detected_domains)
+  if score > 0: candidate
+```
 
-### Phase 3: Compile Minimal Context
+Also always include:
+- `state_current.md` (if exists) — always relevant
+- Files tagged `[critical]` — always relevant
 
-Build a single compiled block:
+### Phase 3: Link Following
+For each candidate file, scan for `[[links]]`:
+```
+If file A is included and contains [[file_B]]:
+  also include file_B
+```
+Depth limit: 1 hop (prevent chain-loading entire memory).
 
+### Phase 4: Global Memory Merge
+Check `~/.claude/global-memory/`:
+- `credentials.md` → include if session involves API calls
+- `preferences.md` → always include (tiny, universal)
+
+### Phase 5: Build Compiled Context
 ```markdown
-## Compiled Context for This Session
+## Compiled Context (auto-generated by memory-governor)
 
-### Active State
-[from state_current.md — always included]
+### State
+[from state_current.md]
 
 ### Relevant Knowledge
-[from scored memory files — domain-specific subset]
+[from tag-matched files]
 
-### Applicable Rules
-[from feedback files — only matching rules]
+### Global
+[from global-memory, if relevant]
 ```
 
-### Phase 4: Inject
-
-Append compiled context to the conversation as a single message, replacing the need to load all 15+ index entries.
-
-**Result**: Instead of loading ~3000 tokens of generic context, load ~800 tokens of precisely relevant context.
-
-### Compile Cache
-
-If the same domain appears repeatedly (e.g., you always work on backend), cache the compiled output:
-
-```
-memory/.compiled/
-  backend.md      # cached compile for backend sessions
-  content.md      # cached compile for content sessions
-  last_compiled: 2026-04-08
-```
-
-Cache invalidation: recompile if any source memory file was modified after `last_compiled`.
+### Phase 6: Cache
+Save to `memory/.compiled/{domain_hash}.md` with timestamp.
+Next session with same domain → reuse if no source files changed.
 
 ---
 
 ## Step-by-step: `capture`
 
-Extract from current conversation:
+| What | Where | Tags |
+|------|-------|------|
+| Decisions | memory/decisions.md | [decision, {domain}] |
+| Errors | memory/errors.md | [error, {domain}] |
+| Preferences | ~/.claude/global-memory/preferences.md | [preference] |
+| Credentials | ~/.claude/global-memory/credentials.md | [credential, {service}] |
+| State changes | memory/state_current.md | [state, critical] |
 
-| What | Where | Format |
-|------|-------|--------|
-| New decisions | memory/decisions.md | `- [DATE] Decision: X. Reason: Y` |
-| Errors encountered | memory/errors.md | `- [DATE] Error: X. Fix: Y` |
-| User preferences | memory/preferences.md | `- Preference: X` |
-| State changes | memory/state.md | Update in-place |
-
-**Rules**:
+Rules:
 - Append, don't overwrite
-- Absolute dates only (never "today", "yesterday")
+- Absolute dates only
 - < 3 lines per entry
-- Don't capture ephemeral task details
+- Add `[[links]]` to related files
+- Add tags matching the domain
 
 ---
 
 ## Step-by-step: `setup-hooks`
 
-Create/update `.claude/hooks.json`:
-
+Creates `.claude/hooks.json`:
 ```json
 {
   "hooks": {
+    "SessionStart": [{
+      "command": "bash ~/.claude/skills/memory-governor/scripts/session-start.sh",
+      "description": "Load governance alerts, compile context if cached"
+    }],
+    "PreCompact": [{
+      "command": "bash ~/.claude/skills/memory-governor/scripts/pre-compact.sh",
+      "description": "Extract key state before context compaction"
+    }],
     "SessionEnd": [{
-      "command": "bash ~/.claude/skills/memory-governor/scripts/session-end-capture.sh",
-      "description": "Check memory health, flag if governance needed"
+      "command": "bash ~/.claude/skills/memory-governor/scripts/session-end.sh",
+      "description": "Capture knowledge, check memory health"
     }]
   }
 }
@@ -248,27 +281,35 @@ Create/update `.claude/hooks.json`:
 ## Token Math
 
 ```
-Per-session fixed tokens ≈ (CLAUDE.md bytes + MEMORY.md bytes) / 3
-
-Without compile: ~3000 tokens (all index loaded)
-With compile: ~800 tokens (only relevant subset)
-Savings: 73%
+Without compile: ~3000 tokens (full index + CLAUDE.md)
+With compile:    ~800 tokens (tag-matched subset)
+With cache:      ~600 tokens (pre-compiled)
+Savings:         73-82%
 ```
 
-| Rating | Tokens | Meaning |
-|--------|--------|---------|
-| ✅ Optimal | < 1000 | Lean and efficient |
-| ⚠️ Acceptable | 1000-2000 | Run optimize |
-| ❌ Bloated | > 2000 | Run compact immediately |
+## Memory File Template
 
+```markdown
+---
+name: descriptive_name
+description: One-line summary for index
+tags: [domain1, domain2, keyword]
+updated: 2026-04-08
 ---
 
-## Anti-Patterns This Fixes
+# Title
 
-1. **Knowledge Dump** — Everything in CLAUDE.md → Move to lower layers
-2. **Index-as-Content** — MEMORY.md paragraphs → Shorten to pointers
-3. **Zombie State** — "Working on X" from weeks ago → Update or archive
-4. **Duplicate Facts** — Same info in 3 places → Single source of truth
-5. **Skill Pollution** — Huge skills that false-trigger → Clear triggers, minimal content
-6. **Date Decay** — "Yesterday decided..." → Absolute dates
-7. **Shotgun Loading** — Load everything for every session → Compile per-intent
+Content here.
+
+See also: [[related_file_name]]
+```
+
+## Anti-Patterns Fixed
+
+1. **Knowledge Dump** — Everything in CLAUDE.md → Layer down
+2. **Untagged Files** — Can't compile without tags → Auto-tag
+3. **Island Files** — No links between related knowledge → Add links
+4. **Project-Locked Knowledge** — Credentials repeated per-project → Global memory
+5. **Shotgun Loading** — Load everything every session → Compile per-intent
+6. **Zombie State** — Old "current" state → Update or archive
+7. **Date Decay** — Relative dates → Absolute dates
