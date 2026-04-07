@@ -1,6 +1,6 @@
 ---
 name: memory-governor
-description: Memory compiler with procedural memory, metabolism, and anti-amnesia. Remembers what works, forgets what doesn't, compiles what's needed. Zero dependencies.
+description: Safe memory enhancement for Claude Code. Never loses knowledge — procedural memory, metabolism, anti-amnesia. Strengthens recall while reducing waste. Zero dependencies.
 allowed-tools:
   - Read
   - Write
@@ -17,13 +17,47 @@ context: inline
 
 # Memory Governor
 
-A memory compiler with three innovations no other system has:
+Safe memory enhancement for Claude Code. Core principle:
+
+> **NEVER lose existing knowledge. Enhance recall. Reduce waste as a side effect.**
+
+Four capabilities:
 
 1. **Procedural Memory** — Remembers HOW you solved problems, not just WHAT happened
 2. **Memory Metabolism** — Hot memories auto-promote, cold memories auto-demote
-3. **Anti-Amnesia** — Prevents re-exploring failed paths when a working solution exists
+3. **Anti-Amnesia** — Prevents re-exploring failed paths when a proven solution exists
+4. **Safety-First Architecture** — Backup before any change, no silent deletions
 
 Zero dependencies. Zero infrastructure. Just organized Markdown.
+
+---
+
+## ⚠️ Safety Guarantees (NON-NEGOTIABLE)
+
+These rules override everything else in this skill:
+
+1. **NEVER delete any file.** Move to `memory/.archive/` instead. Always recoverable.
+2. **NEVER modify content without backup.** Before any optimize/compact, create `memory/.backup/{timestamp}/`
+3. **NEVER remove from CLAUDE.md without confirming the content exists in a memory file first.** Moving content down layers ≠ deleting it.
+4. **NEVER auto-execute optimize/compact.** Always show diff and require human confirmation.
+5. **Files tagged `critical: true` are UNTOUCHABLE.** They are never moved, merged, archived, or modified by any automated action.
+6. **Metabolism NEVER auto-archives.** Cold temperature is a recommendation, not an action. Only humans decide to archive.
+
+### The Critical Tag
+
+Any memory file with `critical: true` in frontmatter is permanently protected:
+```yaml
+---
+name: trading_strategy_alpha
+tags: [quant, strategy, trading]
+critical: true
+---
+```
+Memory Governor will:
+- ✅ Include it in compile (always, regardless of temperature)
+- ✅ Track its access temperature
+- ❌ NEVER suggest moving, merging, archiving, or modifying it
+- ❌ NEVER exclude it from context, even in aggressive compact mode
 
 ---
 

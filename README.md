@@ -1,6 +1,6 @@
 # Memory Governor
 
-**The memory system that remembers what works. Procedural memory + metabolism + anti-amnesia for Claude Code.**
+**Safe memory enhancement for Claude Code. Never loses knowledge. Remembers what works. Forgets nothing important.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,33 @@ Every memory system stores facts (Mem0), events (claude-mem), or relationships (
 
 Every session, Claude Code loads CLAUDE.md + MEMORY.md before you type anything. After months of use, these bloat to 6-10KB. That's 2000-3300 tokens of stale rules, duplicate entries, and knowledge irrelevant to the current session. Every. Single. Time.
 
-## Three Innovations (That No Other System Has)
+## Will It Break My Existing Setup?
+
+**No.** Safety guarantees (non-negotiable):
+- Files are **NEVER deleted** — only moved to `.archive/` (always recoverable)
+- Content is **NEVER removed** from CLAUDE.md without confirming it exists elsewhere first
+- All changes require **human confirmation** before writing
+- Mark critical files with `critical: true` in frontmatter — they become **permanently untouchable**
+- Full backup created in `memory/.backup/{timestamp}/` before any optimize or compact
+
+### For High-Stakes Environments (Quant Trading, Production Systems, etc.)
+
+Tag your critical memory files:
+```yaml
+---
+name: trading_strategy_alpha
+tags: [quant, strategy, trading]
+critical: true
+---
+```
+
+Files with `critical: true` are:
+- ✅ Always included in compiled context (regardless of temperature)
+- ❌ Never moved, merged, archived, or modified by any automated action
+
+**The core principle: Memory enhancement first, token optimization as side effect. Never sacrifice knowledge for efficiency.**
+
+## Four Innovations (That No Other System Has)
 
 ### 1. Procedural Memory — "How I Did It" Layer
 ```markdown
