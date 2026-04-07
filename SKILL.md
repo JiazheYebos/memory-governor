@@ -1,6 +1,6 @@
 ---
 name: memory-governor
-description: Automatically scan, optimize, and restructure Claude Code memory architecture to minimize token consumption while preserving all knowledge. Works on any project.
+description: Zero-dependency memory optimizer for Claude Code. Audit, compact, and restructure memory to cut token waste 50-80%. 4-layer knowledge pyramid with auto-capture hooks.
 allowed-tools:
   - Read
   - Write
@@ -8,8 +8,8 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-when_to_use: "Use when starting a new project, when token consumption feels high, when CLAUDE.md is bloated, or when memory files are disorganized. Triggers: '/memory-governor', 'optimize memory', 'reduce tokens', 'clean up memory', 'memory audit'"
-argument-hint: "/memory-governor [audit|optimize|compact|report]"
+when_to_use: "Use when token consumption is high, CLAUDE.md is bloated, memory is disorganized, or starting a new project. Triggers: '/memory-governor', 'optimize memory', 'reduce tokens', 'clean up memory', 'memory audit', 'token太多'"
+argument-hint: "/memory-governor [audit|optimize|compact|capture|setup-hooks]"
 arguments:
   - action
 context: inline
@@ -17,174 +17,164 @@ context: inline
 
 # Memory Governor
 
-Automatically audit and optimize Claude Code's memory architecture to minimize per-session token consumption while preserving all knowledge.
+Zero-dependency memory optimizer for Claude Code. Audit, compact, and restructure your memory architecture to minimize per-session token consumption while preserving all knowledge.
 
-## Problem This Solves
+**What makes this different from claude-mem, everything-claude-code, etc.:**
+- No runtime dependencies (no Bun, no SQLite, no Chroma, no HTTP server)
+- Subtractive philosophy: reduce context load, don't add 181 skills
+- One `git clone`, immediately functional
+- Works offline, no API keys needed
 
-Every Claude Code session loads CLAUDE.md + MEMORY.md into context. When these files grow unchecked (common after weeks of use), each session wastes thousands of tokens on stale rules, duplicate entries, and content that belongs in lower layers. This skill fixes that automatically.
-
-## Inputs
-- `$action`: `audit` (analyze only) | `optimize` (fix issues) | `compact` (aggressive cleanup) | `report` (show stats)
-
-## Architecture: The 4-Layer Knowledge Pyramid
+## The 4-Layer Knowledge Pyramid
 
 ```
-Layer 0: CLAUDE.md (< 2KB)
-  → Eternal principles only. Loaded EVERY session.
-  → If it doesn't apply to EVERY conversation, it doesn't belong here.
-
-Layer 1: MEMORY.md index (< 15 entries)
-  → One-line pointers to Layer 2 files. Loaded every session.
-  → Each entry < 120 chars. It's an INDEX, not content.
-
-Layer 2: memory/*.md files
-  → Detailed knowledge. Loaded ON DEMAND when relevant.
-  → Decisions, credentials, project state, feedback rules.
-
-Layer 3: skills/*.md + external files
-  → Process templates and reference data. Loaded ONLY when invoked.
-  → Never auto-loaded into context.
+Layer 0: CLAUDE.md          < 2KB    Always loaded. Eternal principles ONLY.
+Layer 1: MEMORY.md index    < 15 entries  Always loaded. One-line pointers.
+Layer 2: memory/*.md        On-demand    Detailed knowledge. Loaded when relevant.
+Layer 3: skills/ + docs/    On-invoke    Templates & reference. Never auto-loaded.
 ```
 
-**Core rule: Content must live at the LOWEST layer where it's still accessible when needed.**
+**Core rule: Every piece of content must live at the LOWEST layer where it's still accessible when needed. Anything higher wastes tokens every session.**
 
-## Steps
+## Actions
 
-### 1. Scan Current State
-Run diagnostics:
+### `/memory-governor audit`
+Analyze without changing anything. Output current state + recommendations.
+
+### `/memory-governor optimize`
+Automatically fix issues: move misplaced content down layers, merge duplicates, clean stale entries.
+
+### `/memory-governor compact`
+Aggressive mode: consolidate all memory files, rewrite CLAUDE.md to minimum, rebuild index.
+
+### `/memory-governor capture`
+Extract key knowledge from current conversation and write to appropriate memory layer.
+
+### `/memory-governor setup-hooks`
+Install session lifecycle hooks for automatic memory management.
+
+## Steps for `audit`
+
+### 1. Measure Current Cost
 ```bash
-# CLAUDE.md size
-wc -c $(find . -name "CLAUDE.md" -maxdepth 1 2>/dev/null || echo "CLAUDE.md")
-
-# Memory index entries
-MEMORY_DIR=$(find ~/.claude/projects -path "*/memory/MEMORY.md" 2>/dev/null | head -1)
-if [ -n "$MEMORY_DIR" ]; then
-  echo "Index entries: $(grep -c '^-' "$MEMORY_DIR")"
-  echo "Memory dir size: $(du -sh "$(dirname "$MEMORY_DIR")")"
-  echo "Memory files: $(ls "$(dirname "$MEMORY_DIR")"/*.md 2>/dev/null | wc -l)"
-fi
-
-# Skills loaded
-find ~/.claude/skills -name "SKILL.md" 2>/dev/null | wc -l
+SKILL_ROOT="$(dirname "$(readlink -f "$0")" 2>/dev/null || echo ~/.claude/skills/memory-governor)"
+bash "$SKILL_ROOT/scripts/audit.sh"
 ```
 
-**Success criteria**: Output current sizes and counts
+Report: CLAUDE.md size, index entries, memory file count/size, estimated tokens.
 
-### 2. Audit CLAUDE.md (Layer 0)
+### 2. Classify CLAUDE.md Content
 
-Read CLAUDE.md and classify every section:
+Read CLAUDE.md line by line. For each section ask: **"Does this apply to EVERY conversation?"**
 
-| Content Type | Correct Layer | Action |
-|-------------|---------------|--------|
-| Core thinking principles | 0 (CLAUDE.md) | Keep |
-| Output format rules | 0 | Keep |
-| Troubleshooting principles | 0 | Keep |
-| API keys / credentials | 2 (memory file) | **Move down** |
-| Product specs / details | 2 | **Move down** |
-| Tool routing tables | 2 or 3 | **Move down** |
-| Model selection rules | 2 | **Move down** |
-| Project-specific state | 2 | **Move down** |
-| Workflow procedures | 3 (skill) | **Move down** |
-| Anti-patterns / error lists | 2 | **Move down** |
-| Registered skills list | Remove (auto-detected) | **Delete** |
+| If YES → | Keep in Layer 0 |
+| If NO → | Recommend move to Layer 2 or 3 |
+
+Specific classification rules:
+
+| Content | Correct Layer | Move? |
+|---------|--------------|-------|
+| Thinking principles, output format | 0 | Stay |
+| API keys, credentials | 2 | ↓ Move |
+| Product/project specifics | 2 | ↓ Move |
+| Tool/model selection tables | 2 | ↓ Move |
+| Step-by-step workflows | 3 (skill) | ↓ Move |
+| Registered skills list | Delete (auto-detected) | ✗ Remove |
+| Error history, anti-patterns | 2 | ↓ Move |
+
+### 3. Audit Memory Index
+
+For each entry in MEMORY.md:
+- Still relevant? → Keep
+- Stale (> 60 days, facts changed)? → Update or remove from index
+- Duplicate of another entry? → Merge
+- Entry > 120 chars? → Shorten to pointer
+
+Target: < 15 entries, each < 120 characters.
+
+### 4. Check Memory Files
+
+- Any file > 5KB? → Consider splitting
+- Total > 100KB? → Needs consolidation
+- Relative dates ("yesterday", "last week")? → Convert to absolute
+- File paths cited? → Verify they still exist
+- Multiple files on same topic? → Merge
+
+### 5. Output Report
+
+```
+## Memory Governor Audit
+
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| CLAUDE.md | X KB (~Y tokens) | < 2KB (~660 tokens) | ✅/⚠️ |
+| Index entries | N | < 15 | ✅/⚠️ |
+| Memory files | M files, Z KB | < 100KB | ✅/⚠️ |
+| Per-session cost | ~T tokens | < 1000 | ✅/⚠️ |
+
+### Recommendations
+1. [specific action items]
+```
+
+## Steps for `optimize`
+
+Run `audit` first, then automatically execute all recommendations:
+1. Rewrite CLAUDE.md keeping only Layer 0 content
+2. Move displaced content to new/existing memory files
+3. Rebuild MEMORY.md index
+4. Merge duplicate memory files
+5. Remove stale index entries (preserve files)
+6. Re-run audit to confirm improvement
+
+**Human checkpoint**: Show before/after diff, ask for confirmation before writing.
+
+## Steps for `capture`
+
+Extract from current conversation:
+1. New decisions made → `memory/decisions.md`
+2. Errors encountered → `memory/errors.md`
+3. User preferences learned → `memory/preferences.md`
+4. Project state changes → `memory/state.md`
 
 **Rules**:
-- CLAUDE.md MUST be < 2KB after optimization
-- Every line must pass the test: "Does this apply to EVERY conversation?"
-- If no → move it to Layer 2 or 3
+- Append, don't overwrite
+- Convert relative dates to absolute
+- Keep entries concise (< 3 lines each)
+- Don't capture ephemeral task details
 
-**Success criteria**: CLAUDE.md < 2KB, only eternal principles remain
+## Steps for `setup-hooks`
 
-### 3. Audit MEMORY.md Index (Layer 1)
-
-Check each index entry:
-- [ ] Is the linked file still relevant? (read it to verify)
-- [ ] Is the entry < 120 characters?
-- [ ] Is there a duplicate or near-duplicate entry?
-- [ ] Has the linked content become stale? (check dates, verify facts)
-- [ ] Can multiple entries be merged into one file?
-
-**Rules**:
-- Index MUST have < 15 entries
-- Remove entries for completed/abandoned projects
-- Merge related entries (e.g., 5 separate "feedback_*" → 1 "feedback_consolidated.md")
-- NEVER delete the actual .md files — only remove from index
-- Convert relative dates to absolute dates in memory files
-
-**Success criteria**: Index < 15 entries, each < 120 chars, no stale pointers
-
-### 4. Consolidate Memory Files (Layer 2)
-
-Scan all memory/*.md files:
-
-**Merge candidates** (files covering similar topics):
-```bash
-# Find similar filenames
-ls memory/ | sort | uniq -d
-# Find files with overlapping content
-grep -l "keyword" memory/*.md
+Create `.claude/hooks.json` with:
+```json
+{
+  "hooks": {
+    "SessionEnd": [{
+      "command": "bash ~/.claude/skills/memory-governor/scripts/session-end-capture.sh",
+      "description": "Auto-capture key knowledge at session end"
+    }]
+  }
+}
 ```
 
-**Stale content check**:
-- Files with dates > 30 days old → verify if still accurate
-- Files referencing specific file paths → verify paths still exist
-- Files with "TODO" or "待完成" → check if done
+This enables automatic memory governance without manual intervention.
 
-**Size check**:
-- Any file > 5KB → consider splitting or summarizing
-- Total memory dir > 100KB → needs aggressive consolidation
-
-**Success criteria**: No duplicate files, no stale content, total < 100KB
-
-### 5. Validate Skills (Layer 3)
-
-Check installed skills:
-- Are any skills auto-loading content into context? (they shouldn't)
-- Are any skills duplicating knowledge already in memory?
-- Do skills have clear `when_to_use` triggers? (prevents false activation)
-
-**Success criteria**: Skills are lazy-loaded only, no context pollution
-
-### 6. Output Report
-
-```markdown
-## Memory Governor Report
-
-### Before
-- CLAUDE.md: X KB (~Y tokens)
-- Memory index: N entries
-- Memory files: M files, Z KB total
-- Skills: S installed
-- Estimated per-session fixed cost: T tokens
-
-### After
-- CLAUDE.md: X KB (~Y tokens)
-- Memory index: N entries
-- Memory files: M files, Z KB total
-- Estimated per-session fixed cost: T tokens
-
-### Changes Made
-- [list of specific changes]
-
-### Savings
-- Token reduction: XX%
-```
-
-## Token Estimation Formula
+## Token Estimation
 
 ```
-Per-session tokens ≈ (CLAUDE.md bytes / 3) + (MEMORY.md bytes / 3)
+Per-session tokens ≈ (CLAUDE.md bytes + MEMORY.md bytes) / 3
 ```
 
-Rough guide:
-- 1KB text ≈ 330 tokens
-- Target: < 1000 tokens fixed cost per session
-- Max acceptable: 2000 tokens
+| Rating | Tokens | Meaning |
+|--------|--------|---------|
+| ✅ Optimal | < 1000 | Lean and efficient |
+| ⚠️ Acceptable | 1000-2000 | Room to improve |
+| ❌ Bloated | > 2000 | Immediate optimization needed |
 
-## Common Anti-Patterns This Fixes
+## Anti-Patterns This Fixes
 
-1. **CLAUDE.md as knowledge dump** — People add every rule, API key, and project detail to CLAUDE.md. Fix: move to Layer 2.
-2. **Memory index as content** — Index entries that are paragraphs instead of pointers. Fix: one-line summaries only.
-3. **Duplicate knowledge** — Same fact in CLAUDE.md AND a memory file AND a skill. Fix: single source of truth at lowest viable layer.
-4. **Stale state** — "Current task: doing X" from 3 weeks ago. Fix: update or remove.
-5. **Skill over-specification** — Skills with 5KB of rules that get loaded on false triggers. Fix: clear `when_to_use` and minimal content.
+1. **Knowledge Dump CLAUDE.md** — Everything crammed into one file that loads every session
+2. **Index-as-Content** — MEMORY.md entries that are paragraphs instead of pointers
+3. **Zombie Entries** — "Current task: X" from weeks ago, never updated
+4. **Duplicate Facts** — Same information in CLAUDE.md AND memory AND skill
+5. **Skill Pollution** — Skills with huge rule blocks that false-trigger and load unnecessarily
+6. **Date Decay** — "Yesterday we decided..." becomes meaningless after a week
