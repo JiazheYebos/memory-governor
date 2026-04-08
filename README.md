@@ -1,6 +1,8 @@
 # Memory Governor
 
-**Safe memory enhancement for Claude Code. Never loses knowledge. Remembers what works. Forgets nothing important.**
+**Makes Claude Code think deeper, remember everything, and never give up.**
+
+Not just memory management. A behavioral upgrade. Install this and Claude Code becomes an agent that verifies before claiming, remembers every proven method, never retries failed approaches, proactively helps you stay on track, and exhausts all options before saying "can't do it."
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -80,7 +82,24 @@ Source (50KB: facts + procedures + skills)
 Context (~2KB: proven methods + relevant facts)
 ```
 
-## Also Includes (from v2.x)
+## 10 Behavioral Principles (injected on install)
+
+| # | Principle | What Changes |
+|---|-----------|-------------|
+| 1 | **Think before acting** | Check procedures first, identify risks, then execute |
+| 2 | **No hallucinations** | Never state unverified facts. Test or say "I'm not sure" |
+| 3 | **Retrospect** | After every task: did output meet requirement? What went wrong? |
+| 4 | **Data-driven** | Every recommendation backed by evidence, not "general knowledge" |
+| 5 | **Take initiative** | Don't wait to be told. See problem → warn. Decision made → save to memory |
+| 6 | **Never give up** | Try 3+ approaches before reporting failure. Don't push problems to user |
+| 7 | **Time awareness** | Tasks > 3 days old → ask if still needed. Don't execute stale work |
+| 8 | **Remember failures** | Write failed approaches to procedures. Never retry what already failed |
+| 9 | **Judge by output** | "Ran without errors" ≠ correct. Verify the actual output yourself |
+| 10 | **Help human remember** | Auto-briefing, auto-capture decisions, be the external brain |
+
+These are written to CLAUDE.md as ~100 tokens. They reshape every interaction.
+
+## Also Includes
 
 ### Tag-Based Semantic Index
 Lightweight alternative to vector databases. Every memory file gets `tags:` in frontmatter. Compile matches intent against tags — zero infrastructure:
