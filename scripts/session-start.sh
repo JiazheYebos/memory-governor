@@ -1,20 +1,14 @@
 #!/bin/bash
 # Memory Governor v4 — Session Start Hook
-# Runs compile engine to generate minimal context
+# 1. Show human briefing (status summary)
+# 2. Run compile engine (AI context)
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PY="python3"
+command -v python3.12 >/dev/null 2>&1 && PY="python3.12"
 
-# Show alerts from previous session
-MEMORY_DIR=""
-for d in $(find ~/.claude/projects -name "memory" -type d 2>/dev/null | head -3); do
-  [ -f "$d/MEMORY.md" ] && MEMORY_DIR="$d" && break
-done
+# Human briefing
+$PY "$SKILL_DIR/scripts/briefing.py" 2>/dev/null
 
-if [ -n "$MEMORY_DIR" ] && [ -f "$MEMORY_DIR/governance_alerts.log" ] && [ -s "$MEMORY_DIR/governance_alerts.log" ]; then
-  echo "[memory-governor] ⚠️ Alerts:"
-  cat "$MEMORY_DIR/governance_alerts.log"
-  > "$MEMORY_DIR/governance_alerts.log"
-fi
-
-# Run compile (generates .compiled/context.md)
-python3 "$SKILL_DIR/scripts/compile.py" 2>/dev/null || python3.12 "$SKILL_DIR/scripts/compile.py" 2>/dev/null
+# AI compile
+$PY "$SKILL_DIR/scripts/compile.py" 2>/dev/null

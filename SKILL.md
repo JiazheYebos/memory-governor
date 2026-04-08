@@ -17,19 +17,29 @@ context: inline
 
 # Memory Governor v4
 
-**Install → hooks auto-run → memory self-improves.** No manual intervention needed.
+**Enhances memory for both AI and human.** Install → hooks auto-run → memory self-improves.
 
-## What's Different in v4
+## Two Users, One System
 
-v1-v3 were "instruction manuals" — Claude had to read the SKILL.md and pretend to execute.
-v4 has **real code** that runs automatically via hooks:
+This skill helps **two kinds of memory failure**:
 
-| Component | File | Runs |
-|-----------|------|------|
-| Compile engine | `scripts/compile.py` | Auto at SessionStart |
-| Metabolism engine | `scripts/metabolism.py` | Auto at SessionEnd |
-| Backup engine | `scripts/backup.py` | Before any optimize |
-| Audit script | `scripts/audit.sh` | On demand |
+### AI Amnesia (Claude forgets)
+- Forgets proven API methods → re-explores, wastes time, says "can't do it"
+- Fix: Procedural memory + anti-amnesia protocol
+
+### Human Overload (you forget)
+- Too many projects → lose track of progress, blockers, decisions
+- Fix: Auto-briefing at session start + proactive state capture
+
+## Engines (real code, auto-run via hooks)
+
+| Component | File | Runs | Helps |
+|-----------|------|------|-------|
+| Compile engine | `scripts/compile.py` | SessionStart | AI recall |
+| Metabolism engine | `scripts/metabolism.py` | SessionEnd | AI + Human |
+| Briefing engine | `scripts/briefing.py` | SessionStart | **Human recall** |
+| Backup engine | `scripts/backup.py` | Before optimize | Safety |
+| Audit script | `scripts/audit.sh` | On demand | Both |
 
 ## Safety Guarantees
 
@@ -37,6 +47,35 @@ v4 has **real code** that runs automatically via hooks:
 2. `critical: true` files are permanently untouchable
 3. Backup auto-created before any optimize
 4. Metabolism recommends, never auto-archives
+
+## Human Memory Support
+
+### Auto-Briefing (SessionStart)
+Every new conversation, Claude automatically:
+1. Reads `memory/state_current.md`
+2. Shows a short status summary before anything else:
+```
+📋 Current state:
+- [In progress items]
+- [Blocked items]
+- [Decisions needed]
+Suggested priority: [top 1-2 items]
+```
+
+### Auto-Capture (ongoing)
+When the user makes an important decision or changes direction, Claude writes it to memory immediately — without being asked. The user never needs to say "remember this."
+
+### State File Template (`memory/state_current.md`)
+```yaml
+---
+name: state_current
+tags: [state, critical]
+critical: true
+---
+```
+Sections: Urgent/Blocked → In Progress → Completed → Key TODOs → API Status
+
+**Token cost: ~50 tokens/session (CLAUDE.md rules) + ~500 tokens once at session start (state read). Negligible vs the time saved.**
 
 ## Quick Start
 
