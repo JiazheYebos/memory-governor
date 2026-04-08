@@ -38,8 +38,8 @@ A Python script runs at session start and prints your current status:
 
 ```
 📋 Session Briefing
-🚨 Blocked: Seedance 2.0 needs activation
-🔄 In Progress: Kickstarter page setup
+🚨 Blocked: API key expired
+🔄 In Progress: Feature branch deployment
 📚 8 proven procedures available
 ```
 
